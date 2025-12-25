@@ -56,7 +56,7 @@
 
           <div>
             <label class="block text-xs font-bold text-slate-500 mb-1">Country</label>
-            <input name="country" required class="w-full p-3 border rounded-xl" placeholder="Your country" />
+            <input name="country" required class="w-full p-3 border rounded-xl" placeholder="Nigeria" value="Nigeria" />
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -83,8 +83,8 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-bold text-slate-500 mb-1">Requested Amount (₺)</label>
-              <input name="amount" type="number" min="0" required class="w-full p-3 border rounded-xl" placeholder="50000" />
+              <label class="block text-xs font-bold text-slate-500 mb-1">Requested Amount (₦)</label>
+              <input name="amount" type="number" min="0" step="0.01" required class="w-full p-3 border rounded-xl" placeholder="50000" />
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-500 mb-1">Requested Duration (months)</label>
@@ -118,31 +118,55 @@
     function submitApp(event) {
       event.preventDefault();
       const btn = document.getElementById('btnSubmit');
+      const originalText = btn.innerText;
       btn.disabled = true;
       btn.innerText = 'Submitting...';
 
       const formData = new FormData(document.getElementById('appForm'));
       const data = Object.fromEntries(formData);
 
+      // Ensure serial has a value (even if empty string)
+      if (!data.serial) data.serial = '';
+      
+      // Remove the file input from data as we'll handle it separately
+      delete data.collateralImage;
+      
       const fileInput = document.getElementById('collateralImage');
-      const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+      const file = fileInput && fileInput.files && fileInput.files.length > 0 ? fileInput.files[0] : null;
 
       const send = () => {
         google.script.run
           .withSuccessHandler(r => {
-            if (r && r.success) {
-              Swal.fire('Submitted', 'Your application has been received.', 'success');
-              document.getElementById('appForm').reset();
-            } else {
-              Swal.fire('Error', (r && r.message) ? r.message : 'Submission failed', 'error');
-            }
             btn.disabled = false;
-            btn.innerText = 'Submit Application';
+            btn.innerText = originalText;
+            
+            if (r && r.success) {
+              Swal.fire({
+                title: 'Application Submitted!',
+                text: 'Your application has been received. We will review and contact you soon.',
+                icon: 'success',
+                confirmButtonColor: '#4f46e5'
+              }).then(() => {
+                document.getElementById('appForm').reset();
+              });
+            } else {
+              Swal.fire({
+                title: 'Submission Failed',
+                text: (r && r.message) ? r.message : 'Please try again or contact support.',
+                icon: 'error',
+                confirmButtonColor: '#4f46e5'
+              });
+            }
           })
           .withFailureHandler(err => {
-            Swal.fire('Error', 'Submission failed: ' + err.message, 'error');
             btn.disabled = false;
-            btn.innerText = 'Submit Application';
+            btn.innerText = originalText;
+            Swal.fire({
+              title: 'Network Error',
+              text: 'Failed to submit: ' + err.message,
+              icon: 'error',
+              confirmButtonColor: '#4f46e5'
+            });
           })
           .submitApplication(data);
       };
@@ -156,8 +180,13 @@
         };
         reader.onerror = () => {
           btn.disabled = false;
-          btn.innerText = 'Submit Application';
-          Swal.fire('Error', 'Failed to read image file.', 'error');
+          btn.innerText = originalText;
+          Swal.fire({
+            title: 'File Error',
+            text: 'Failed to read image file. Please try another file.',
+            icon: 'error',
+            confirmButtonColor: '#4f46e5'
+          });
         };
         reader.readAsDataURL(file);
         return;
